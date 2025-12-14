@@ -1,0 +1,17 @@
+{
+  "components_dir": "../grist/composants",
+  "envs": {
+    "dev": {
+      "base_url": "https://grist.numerique.gouv.fr",
+      "doc_id": "cze6JehcADxVfwf9HamKeH",
+      "api_key_env": "GRIST_API_KEY_DEV",
+      "table_id": "Application_Composants"
+    },
+    "prod": {
+      "base_url": "https://grist.numerique.gouv.fr",
+      "doc_id": "b4DA3nGJwznvte7JBvcr2w",
+      "api_key_env": "GRIST_API_KEY_PROD",
+      "table_id": "Application_Composants"
+    }
+  }
+}

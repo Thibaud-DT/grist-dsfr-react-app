@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Grist Component Studio</title>
+  <link rel="preconnect" href="https://unpkg.com" />
+  <style>
+    *{box-sizing:border-box}
+    html,body,#root{height:100%;margin:0}
+    body{font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Cantarell,Noto Sans,Ubuntu,Helvetica Neue,Arial;background:#0b0f17;color:#e5e7eb}
+    .app{display:grid;grid-template-columns:260px 1fr 320px;grid-template-rows:48px 1fr;height:100%}
+    .topbar{grid-column:1/-1;height:48px;display:flex;align-items:center;gap:8px;padding:0 12px;border-bottom:1px solid #1f2937;background:#0f1522}
+    .brand{font-weight:700;color:#fff}
+    .ghost{opacity:.6}
+    .btn{background:#1f2937;color:#e5e7eb;border:1px solid #374151;padding:6px 10px;border-radius:10px;cursor:pointer;font-size:12px}
+    .btn.primary{background:#2563eb;border-color:#1d4ed8}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .left{border-right:1px solid #1f2937;overflow:auto;background:#0c1320}
+    .left .search{padding:8px;position:sticky;top:0;background:#0c1320;border-bottom:1px solid #1f2937}
+    .input{width:100%;padding:8px 10px;border-radius:10px;border:1px solid #374151;background:#0b0f17;color:#e5e7eb}
+    .list{padding:8px;display:flex;flex-direction:column;gap:6px}
+    .item{padding:10px;border:1px solid #1f2937;border-radius:12px;cursor:pointer;background:#0f1522}
+    .item:hover{border-color:#2b3443}
+    .item.active{outline:2px solid #2563eb}
+    .item small{display:block;opacity:.6}
+    .center{display:flex;flex-direction:column;min-width:0}
+    .editorWrap{flex:1;min-height:0}
+    #editor{width:100%;height:100%}
+    .right{border-left:1px solid #1f2937;background:#0c1320;overflow:auto}
+    .right.hidden{display:none}
+    .panel{padding:12px;display:flex;flex-direction:column;gap:10px}
+    .field{display:flex;flex-direction:column;gap:6px}
+    label{font-size:12px;opacity:.8}
+    input[type="text"],input[type="number"],select,textarea{background:#0b0f17;color:#e5e7eb;border:1px solid #374151;padding:8px 10px;border-radius:10px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .row .grow{flex:1}
+    .switch{display:inline-flex;align-items:center;gap:6px}
+    .status{font-size:12px;opacity:.7}
+    .empty{padding:24px;opacity:.7}
+    .app.settings-closed { grid-template-columns: 260px 1fr; }
+  </style>
+
+  <!-- React & ReactDOM -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- Babel (pour transformer le code des composants dans l’aperçu si besoin) -->
+  <script src="https://unpkg.com/@babel/standalone@7.25.7/babel.min.js"></script>
+
+  <!-- Monaco Editor -->
+  <script src="https://unpkg.com/monaco-editor@0.49.0/min/vs/loader.js"></script>
+
+  <!-- Grist Widget API -->
+  <script src="https://docs.getgrist.com/grist-plugin-api.js"></script>
+</head>
+<body>
+  <div id="root">
+    <div style="padding:16px">Chargement de l’éditeur…</div>
+  </div>
+
+  <!-- Votre application -->
+  <script src="widget-react-editor.js"></script>
+</body>
+</html>

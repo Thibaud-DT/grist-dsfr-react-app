@@ -68,7 +68,7 @@
                 <div class="fr-header__brand fr-enlarge-link">
                     <div class="fr-header__brand-top">
                         <div class="fr-header__logo">
-                            <p class="fr-logo">
+                            <p class="fr-logo" id="header-entity-logo">
                                 Ministère
                                 <br>de la Culture
                             </p>
@@ -79,31 +79,20 @@
                     </div>
                     <div class="fr-header__service">
                         <a href="#" data-nav="home" title="Accueil">
-                            <p class="fr-header__service-title">
-                                Eclauses
-                                <span class="fr-badge fr-badge--sm fr-badge--green-emeraude">BETA</span>
+                            <p class="fr-header__service-title" id="header-service-title">
+                                Projet
+                                <span class="fr-badge fr-badge--sm fr-badge--green-emeraude" id="header-service-badge">ALPHA</span>
                             </p>
                         </a>
-                        <!--<p class="fr-header__service-tagline">baseline - précisions sur l‘organisation</p>-->
+                        <p class="fr-header__service-tagline" id="header-service-tagline" style="display:none;"></p>
                     </div>
                 </div>
-                <!-- ⚡️ NOUVEAU : zone outils avec menu utilisateur -->
                 <div class="fr-header__tools">
-                  <div class="fr-header__tools-links" >
-                    <ul class="fr-btns-group">
-                      <li>
-                        <a href="#" data-nav="apropos" class="fr-btn">C'est quoi Eclauses ?</a>
-                      </li>
-                      <li>
-                        <a href="#" data-nav="faq" class="fr-btn">FAQ</a>
-                      </li>
-                    </ul>
-                    <div id="header-user" class="fr-nav">
-                      
-                    </div>
+                  <div class="fr-header__tools-links">
+                    <ul class="fr-btns-group" id="header-tools-links"></ul>
+                    <div id="header-user" class="fr-nav"></div>
                   </div>
                 </div>
-                <!-- /fin zone outils -->
             </div>
         </div>
     </div>
@@ -125,7 +114,7 @@
           <div class="app-loading__card fr-card fr-card--no-border">
             <div class="fr-card__body">
               <div class="fr-loader" aria-label="Chargement"></div>
-              <p class="fr-text--lead fr-mt-2w" data-loading-msg>Chargement de votre espace…</p>
+              <p class="fr-text--lead fr-mt-2w" data-loading-msg>Chargement…</p>
               <p class="fr-text--sm fr-text-mention--grey">Merci de patienter quelques secondes.</p>
             </div>
           </div>
@@ -136,48 +125,20 @@
     <div class="fr-container">
         <div class="fr-footer__body">
             <div class="fr-footer__brand fr-enlarge-link">
-                <p class="fr-logo">
+                <p class="fr-logo" id="footer-entity-logo">
                     Ministère
                     <br>de la Culture
                 </p>
             </div>
             <div class="fr-footer__content">
-              <p class="fr-footer__content-desc"></p>   
-                <ul class="fr-footer__content-list">
-                    <li class="fr-footer__content-item">
-                        <a title="culture.gouv.fr - nouvelle fenêtre" href="https://www.culture.gouv.fr/" target="_blank" rel="noopener external" class="fr-footer__content-link">culture.gouv.fr</a>
-                    </li>
-                    <li class="fr-footer__content-item">
-                        <a title="www.economie.gouv.fr - nouvelle fenêtre" href="https://www.economie.gouv.fr/daj/guide-sur-les-aspects-sociaux-de-la-commande-publique" target="_blank" rel="noopener external" class="fr-footer__content-link">www.economie.gouv.fr - DAJ - Guide des aspects sociaux de la commande publique</a>
-                    </li>
-                    
-                    <li class="fr-footer__content-item">
-                        <a title="marches-publics.gouv.fr - nouvelle fenêtre" href="https://marches-publics.gouv.fr" target="_blank" rel="noopener external" class="fr-footer__content-link">marches-publics.gouv.fr</a>
-                    </li>
-                </ul>
+              <p class="fr-footer__content-desc" id="footer-desc"></p>
+              <ul class="fr-footer__content-list" id="footer-links"></ul>
             </div>
         </div>
         <div class="fr-footer__bottom">
-            <ul class="fr-footer__bottom-list">
-                <!--<li class="fr-footer__bottom-item">
-                    <a href="[url - à modifier]" class="fr-footer__bottom-link">Plan du site</a>
-                </li>-->
-                <!--<li class="fr-footer__bottom-item">
-                    <a href="[url - à modifier]" class="fr-footer__bottom-link">Accessibilité : non/partiellement/totalement conforme</a>
-                </li>-->
-                <li class="fr-footer__bottom-item">
-                    <a href="#" data-nav="mentions_legales" class="fr-footer__bottom-link">Mentions légales</a>
-                </li>
-                <li class="fr-footer__bottom-item">
-                    <a href="#" data-nav="donnees_personnelles" class="fr-footer__bottom-link">Données personnelles</a>
-                </li>
-                <!--<li class="fr-footer__bottom-item">
-                    <a href="[url - à modifier]" class="fr-footer__bottom-link">Gestion des cookies</a>
-                </li>-->
-            </ul>
-            <div class="fr-footer__bottom-copy">
-                <p>Sauf mention explicite de propriété intellectuelle détenue par des tiers, les contenus de ce site sont proposés sous <a href="https://github.com/etalab/licence-ouverte/blob/master/LO.md" target="_blank" rel="noopener external" title="Licence etalab - nouvelle fenêtre">licence etalab-2.0</a>
-                </p>
+            <ul class="fr-footer__bottom-list" id="footer-bottom-links"></ul>
+            <div class="fr-footer__bottom-copy" id="footer-copy">
+                <p>Sauf mention explicite de propriété intellectuelle détenue par des tiers, les contenus de ce site sont proposés sous <a href="https://github.com/etalab/licence-ouverte/blob/master/LO.md" target="_blank" rel="noopener external" title="Licence etalab-2.0">licence etalab-2.0</a></p>
             </div>
         </div>
     </div>
@@ -191,6 +152,6 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.14.1/dist/dsfr.module.min.js"></script>
     <script nomodule src="https://cdn.jsdelivr.net/npm/@gouvfr/dsfr@1.14.1/dist/dsfr.nomodule.min.js"></script>
-    <script src="widget-react-dsfr.js"></script>
+    <script src="widget-app.js"></script>
   </body>
 </html>

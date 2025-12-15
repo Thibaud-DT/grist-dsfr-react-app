@@ -1,5 +1,5 @@
 {
-  "components_dir": "../grist/composants",
+  "components_dir": "../../grist/page",
   "envs": {
     "dev": {
       "base_url": "https://grist.numerique.gouv.fr",

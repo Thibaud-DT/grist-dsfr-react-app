@@ -1,13 +1,64 @@
 class ReactApp {
   COMPONENTS_TABLE = 'Application_Composants';
   AUTH_TABLE = 'AuthLink';
+  HEADER_TABLE = 'Application_Header';
+  FOOTER_TABLE = 'Application_Footer';
+  LINKS_TABLE   = 'Application_Liens';
 
   constructor() {
     this.components = new Map();
+    this.sharedComponents = new Map(); // type=component (UI kit, helpers…) accessibles aux pages
     this.currentComponent = null;
     this.isReady = false;
     this.gristAPI = null;
     this.session = { auth: null, ready: false };
+
+    this.uiConfig = null;
+    this.defaultUI = {
+      header: {
+        title: 'Projet',
+        badge: { label: 'ALPHA', variant: 'fr-badge--green-emeraude' },
+        tagline: 'Ceci est ma tagline',
+        links: [],
+        entity_logo: "Nom<br/>du ministère",
+      },
+      footer: {
+        desc: '',
+        entity_logo: "Nom<br/>du ministère",
+        links: [
+          { label: 'info.gouv.fr', url: 'https://info.gouv.fr', external: true },
+          { label: 'service-public.gouv.fr', url: 'https://service-public.gouv.fr', external: true },
+          { label: 'legifrance.gouv.fr', url: 'https://legifrance.gouv.fr', external: true },
+          { label: 'data.gouv.fr', url: 'https://data.gouv.fr', external: true },
+        ],
+        bottom: [
+          { label: 'Plan du site', nav: 'mention#s_legales' },
+          { label: 'Accessibilité : non/partiellement/totalement conforme', nav: '#' },
+          { label: 'Mentions légales', nav: '#' },
+          { label: 'Données personnelles', nav: '#' },
+          { label: 'Gestion des cookies', nav: '#' },
+        ],
+        copyHtml: 'Sauf mention explicite de propriété intellectuelle détenue par des tiers, les contenus de ce site sont proposés sous <a href="https://github.com/etalab/licence-ouverte/blob/master/LO.md" target="_blank" rel="noopener external" title="Licence etalab - nouvelle fenêtre">licence etalab-2.0</a>',
+      },
+    };
+  }
+
+  getMergedParams() {
+    const sources = [];
+    sources.push(new URLSearchParams(window.location.search || ''));
+    try {
+      const topSearch = window.top?.location?.search;
+      if (topSearch) sources.push(new URLSearchParams(topSearch));
+    } catch (_) {}
+    if (document.referrer) {
+      try {
+        const ref = new URL(document.referrer);
+        sources.push(ref.searchParams);
+      } catch (_) {}
+    }
+    const merged = new URLSearchParams();
+    sources.forEach(p => p.forEach((v, k) => merged.set(k, v)));
+    return merged;
   }
 
   async init() {
@@ -16,7 +67,8 @@ class ReactApp {
 
       this.setupGristAPI();
       await this.loadAuth();            // 🔐 Auth stricte via AuthLink
-      await this.loadComponents();      // 🧩 Charge tous les composants
+      await this.loadComponents();      // 🧩 Charge tous les composants + components partagés
+      await this.loadUiConfig();        // 🎨 Header/Footer dynamiques
 
       this.setupNavigation();           // 🧭 Nav filtrée (requires_auth)
       this.setupGlobalNavHooks();       // data-nav
@@ -107,6 +159,10 @@ class ReactApp {
 
       // Navigation programmée
       navigate: (componentId) => self.loadComponent(componentId),
+      getQueryParams: () => {
+        return this.getMergedParams();
+      },
+      getComponent: (name) => self.sharedComponents.get(name) || null,
 
       // Composants enfants
       getChildComponent: async (templateId, overrides = {}) => {
@@ -318,6 +374,153 @@ class ReactApp {
     }
   }
 
+  // ---------- UI dynamiques ----------
+  buildLinkTag(link, className = '') {
+    const label = link?.label || 'Lien';
+    const cls = (className || '').trim();
+    if (link?.nav) {
+      return `<a class="${cls}" href="#" data-nav="${link.nav}">${label}</a>`;
+    }
+    const href = link?.url || '#';
+    const external = link?.external || link?.target === '_blank';
+    const target = external ? ' target="_blank" rel="noopener noreferrer"' : '';
+    return `<a class="${cls}" href="${href}"${target}>${label}</a>`;
+  }
+
+  async loadUiConfig() {
+    const asArray = this.gristAPI?.helpers?.asArray || ((v) => Array.isArray(v) ? v : (v == null ? [] : [v]));
+    const defaults = this.defaultUI;
+    let headerCfg = defaults.header;
+    let footerCfg = defaults.footer;
+
+    try {
+      const headerRows = await this.gristAPI.getData(this.HEADER_TABLE);
+      const footerRows = await this.gristAPI.getData(this.FOOTER_TABLE);
+      const linkRows = await this.gristAPI.getData(this.LINKS_TABLE);
+
+      const linkMap = new Map();
+      (linkRows || []).forEach((r) => {
+        if (!r || r.id == null) return;
+        linkMap.set(r.id, {
+          label: r.Label || r.label || '',
+          url: r.Url || r.URL || r.url || null,
+          nav: r.Nav || r.Nav_Id || r.NavId || r.nav || null,
+          variant: r.Variant || r.variant || '',
+          external: (r.External ?? r.external ?? false) === true || String(r.External).toLowerCase() === 'true',
+          order: r.Ordre ?? r.order ?? r.Order ?? 0,
+          target: r.Target || r.target || null,
+        });
+      });
+
+      const resolveLinks = (ids) => {
+        return asArray(ids)
+          .map((id) => linkMap.get(id))
+          .filter(Boolean)
+          .sort((a, b) => (a.order || 0) - (b.order || 0));
+      };
+
+      console.log(headerRows);
+
+      const pickRow = (rows) => (Array.isArray(rows) && rows.length ? rows[0] : null);
+
+      const hRow = pickRow(headerRows);
+      if (hRow) {
+        headerCfg = {
+          title: hRow.Title || defaults.header.badge?.Title,
+          badge: {
+            label: hRow.Badge_Label || defaults.header.badge?.label,
+            variant: hRow.Badge_Variant || defaults.header.badge?.variant,
+          },
+          tagline: hRow.Tagline || defaults.header.badge?.Tagline,
+          links: resolveLinks(hRow.Links) || defaults.header.links,
+        };
+      }
+
+      const fRow = pickRow(footerRows);
+      if (fRow) {
+        footerCfg = {
+          desc: fRow.Description || defaults.footer.desc,
+          links: resolveLinks(fRow.Links) || defaults.footer.links,
+          bottom: resolveLinks(fRow.Bottom_Links) || defaults.footer.bottom,
+          copyHtml: fRow.Copy || defaults.footer.copyHtml,
+        };
+      }
+    } catch (e) {
+      console.warn('loadUiConfig fallback:', e);
+    }
+
+    this.uiConfig = { header: headerCfg, footer: footerCfg };
+    this.renderHeaderConfig();
+    this.renderFooterConfig();
+  }
+
+  renderHeaderConfig() {
+    const cfg = (this.uiConfig && this.uiConfig.header) || this.defaultUI.header;
+    console.log(this.uiConfig);
+    const titleEl = document.getElementById('header-service-title');
+    const badgeHtml = cfg.badge && cfg.badge.label
+      ? `<span class="fr-badge fr-badge--sm ${cfg.badge.variant || ''}" id="header-service-badge">${cfg.badge.label}</span>`
+      : '';
+    if (titleEl) {
+      titleEl.innerHTML = `${cfg.title || 'Eclauses'} ${badgeHtml}`.trim();
+    }
+    const taglineEl = document.getElementById('header-service-tagline');
+    if (taglineEl) {
+      if (cfg.tagline) {
+        taglineEl.textContent = cfg.tagline;
+        taglineEl.style.display = 'block';
+      } else {
+        taglineEl.textContent = '';
+        taglineEl.style.display = 'none';
+      }
+    }
+    const toolsHost = document.getElementById('header-tools-links');
+    if (toolsHost) {
+      const links = cfg.links || [];
+      if (!links.length) {
+        toolsHost.innerHTML = '';
+      } else {
+        const html = `
+            ${links.map(l => `<li>${this.buildLinkTag(l, l.variant || 'fr-btn')}</li>`).join('')}
+        `;
+        toolsHost.innerHTML = html;
+      }
+    }
+
+    const logoEntity = document.getElementById('header-entity-logo');
+    if (logoEntity && cfg.entity_logo) {
+      logoEntity.innerHTML = cfg.entity_logo;
+    }
+  }
+
+  renderFooterConfig() {
+    const cfg = (this.uiConfig && this.uiConfig.footer) || this.defaultUI.footer;
+    const descEl = document.getElementById('footer-desc');
+    if (descEl) descEl.textContent = cfg.desc || '';
+
+    const linksEl = document.getElementById('footer-links');
+    if (linksEl) {
+      const links = cfg.links || [];
+      linksEl.innerHTML = links.map(l => `<li class="fr-footer__content-item">${this.buildLinkTag(l, 'fr-footer__content-link')}</li>`).join('');
+    }
+
+    const bottomEl = document.getElementById('footer-bottom-links');
+    if (bottomEl) {
+      const links = cfg.bottom || [];
+      bottomEl.innerHTML = links.map(l => `<li class="fr-footer__bottom-item">${this.buildLinkTag(l, 'fr-footer__bottom-link')}</li>`).join('');
+    }
+
+    const copyEl = document.getElementById('footer-copy');
+    if (copyEl && cfg.copyHtml) {
+      copyEl.innerHTML = `<p>${cfg.copyHtml}</p>`;
+    }
+
+    const logoEntity = document.getElementById('footer-entity-logo');
+    if (logoEntity && cfg.entity_logo) {
+      logoEntity.innerHTML = cfg.entity_logo;
+    }
+  }
+
   // ---------- Composants ----------
   createChildComponent(template, overrides = {}) {
     try {
@@ -356,9 +559,21 @@ class ReactApp {
     }
 
     this.components.clear();
+    this.sharedComponents.clear();
     for (const template of templates) {
-      const component = this.processComponent(template);
-      this.components.set(component.id, component);
+      const processed = this.processComponent(template);
+      // Si type == "component" => shared module, sinon page
+      const kind = (template.type || template.Type || template.component_kind || '').toString().toLowerCase();
+      if (kind === 'component') {
+        try {
+          const shared = await this.instantiateSharedComponent(processed);
+          if (shared && processed.id) this.sharedComponents.set(processed.id, shared);
+        } catch (e) {
+          console.warn(`Shared component ${processed.id} non chargé:`, e);
+        }
+      } else {
+        this.components.set(processed.id, processed);
+      }
     }
   }
 
@@ -373,6 +588,7 @@ class ReactApp {
       id: template.template_id,
       name: template.template_name,
       type: template.component_type || 'functional',
+      kind: (template.type || template.Type || template.component_kind || '').toString().toLowerCase() || 'page',
       code: template.component_code,
       showInNav: this.toBool(template.show_in_nav),
       navOrder: Number(template.nav_order ?? 9999),
@@ -395,6 +611,25 @@ class ReactApp {
     };
   }
 
+  async instantiateSharedComponent(component) {
+    // Exécute le code du composant (type "component") et retourne son export (factory)
+    const transformedCode = Babel.transform(component.code, {
+      presets: ['react'],
+      plugins: ['proposal-class-properties']
+    }).code;
+
+    const factory = new Function('React', 'gristAPI', `
+      ${transformedCode}
+      if (typeof exports === 'undefined') { var exports = {}; }
+      if (typeof module === 'undefined') { var module = { exports }; }
+      // Support Component exporté directement
+      if (typeof Component !== 'undefined') { module.exports = Component; }
+      return module.exports;
+    `);
+
+    return factory(React, this.gristAPI);
+  }
+
   sanitizeCode(code) {
     return String(code)
       .replace(/\r\n/g, '\n')
@@ -411,15 +646,17 @@ class ReactApp {
       reactContainer.className = 'component-container fr-container--fluid';
       container.appendChild(reactContainer);
 
-      const transformedCode = Babel.transform(code, {
-        presets: ['react'],
-        plugins: ['proposal-class-properties']
-      }).code;
+    const transformedCode = Babel.transform(code, {
+      presets: ['react'],
+      plugins: ['proposal-class-properties']
+    }).code;
 
-      const componentFactory = new Function(
-        'React','gristAPI',
-        `
+    const componentFactory = new Function(
+      'React','gristAPI','gristUI',
+      `
         const { useState, useEffect, useMemo, useCallback } = React;
+        const UI = gristUI || {};
+        const helpers = UI.helpers || gristAPI.helpers || {};
         ${transformedCode}
         if (typeof Component === 'undefined') {
           throw new Error("Composant non défini : déclare 'const Component = () => {...}' ou 'function Component() {...}'");
@@ -428,7 +665,7 @@ class ReactApp {
         `
       );
 
-      const Component = componentFactory(React, this.gristAPI);
+    const Component = componentFactory(React, this.gristAPI, Object.fromEntries(this.sharedComponents));
       ReactDOM.render(React.createElement(Component), reactContainer);
     } catch (error) {
       console.error('Erreur rendu composant:', error);
@@ -470,8 +707,10 @@ class ReactApp {
   // ---------- Navigation (sans hash) ----------
   setupNavigation() {
     const nav = document.getElementById('navigation');
-    if (!nav) return;
-    nav.innerHTML = '';
+    const navMobile = document.querySelector('.fr-header__menu-links');
+    if (!nav && !navMobile) return;
+    if (nav) nav.innerHTML = '';
+    if (navMobile) navMobile.innerHTML = '';
 
     const isAuth = !!this.session.auth;
 
@@ -496,8 +735,63 @@ class ReactApp {
       });
 
       li.appendChild(a);
-      nav.appendChild(li);
+      if (nav) nav.appendChild(li.cloneNode(true));
+      if (navMobile) {
+        const clone = li.cloneNode(true);
+        clone.querySelector('a').addEventListener('click', (e) => {
+          e.preventDefault();
+          this.loadComponent(component.id);
+          const modal = document.getElementById('modal-nav');
+          if (modal) modal.classList.remove('fr-modal--opened');
+        });
+        navMobile.appendChild(clone);
+      }
     });
+
+    // Ajouter login / espaces dans le menu mobile
+    if (navMobile) {
+      const mobileExtra = document.createElement('div');
+      mobileExtra.className = 'fr-my-3w';
+      if (!isAuth) {
+        mobileExtra.innerHTML = `
+          <ul class="fr-btns-group">
+            <li><button class="fr-btn fr-icon-lock-line" data-nav="login">Se connecter</button></li>
+          </ul>`;
+      } else {
+        const roles = Array.isArray(this.session.auth.roles) ? this.session.auth.roles : [];
+        const candidates = [
+          { role: 'repondant',    id: 'espace-repondant',    label: 'Espace répondant'    },
+          { role: 'beneficiaire', id: 'espace-beneficiaire', label: 'Espace bénéficiaire' },
+          { role: 'acheteur',     id: 'espace-acheteur',     label: 'Espace acheteur'     },
+        ];
+        const spaces = candidates.filter(s => roles.includes(s.role) && this.components.has(s.id));
+        const btns = spaces.map(s => `<li><button class="fr-btn" data-nav="${s.id}">${s.label}</button></li>`).join('');
+        mobileExtra.innerHTML = `
+          <ul class="fr-btns-group">${btns}</ul>
+          <ul class="fr-btns-group fr-mt-2w"><li><button class="fr-btn fr-btn--secondary" id="mobile-logout">Se déconnecter</button></li></ul>
+        `;
+      }
+      navMobile.appendChild(mobileExtra);
+
+      navMobile.querySelectorAll('[data-nav]').forEach(el => {
+        el.addEventListener('click', (e) => {
+          e.preventDefault();
+          const id = el.getAttribute('data-nav');
+          if (id) this.loadComponent(id);
+          const modal = document.getElementById('modal-nav');
+          if (modal) modal.classList.remove('fr-modal--opened');
+        });
+      });
+      const logoutBtn = navMobile.querySelector('#mobile-logout');
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          this.logout();
+          const modal = document.getElementById('modal-nav');
+          if (modal) modal.classList.remove('fr-modal--opened');
+        });
+      }
+    }
   }
 
   isAuthenticated() {
@@ -560,6 +854,14 @@ class ReactApp {
   async loadDefaultComponent() {
     if (this.components.size === 0) {
       this.showError('Configuration', `Aucun composant dans ${this.COMPONENTS_TABLE}.`);
+      return;
+    }
+
+    // âš¡ï¸ Lien direct ?p=compId ou ?page=compId (fallback top/referrer)
+    const params = this.getMergedParams();
+    const forcedId = params.get('p') || params.get('page') || params.get('page_');
+    if (forcedId && this.components.has(forcedId)) {
+      await this.loadComponent(forcedId);
       return;
     }
 

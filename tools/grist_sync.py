@@ -100,7 +100,7 @@ def extract_template_id_from_path(p: Path) -> str:
 
 def fetch_component_record(env_cfg: Dict[str, Any], template_id: str) -> Optional[Dict[str, Any]]:
   url = f"{env_cfg['base_url'].rstrip('/')}/api/docs/{env_cfg['doc_id']}/tables/{env_cfg['table_id']}/records"
-  params = {f"filter[template_id]": template_id}
+  params = 'filter={"template_id": ["'+template_id+'"]}'
   headers = {"Authorization": f"Bearer {env_cfg['_api_key']}"}
   r = requests.get(url, headers=headers, params=params)
   try:

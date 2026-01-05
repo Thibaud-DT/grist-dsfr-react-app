@@ -11,7 +11,7 @@ class ReactApp {
     this.currentComponent = null;
     this.isReady = false;
     this.gristAPI = null;
-    this.session = { auth: null, ready: false };
+    this.session = { auth: null, ready: false, activeSpace: null };
 
     this.uiConfig = null;
     this.defaultUI = {
@@ -246,8 +246,9 @@ class ReactApp {
         beneficiaireId: row.Beneficiaire || null,
         repondantId: row.Repondant || null,
         acheteurId: row.Acheteur || null,
-        roles: Array.isArray(row.Roles) ? row.Roles : [], // ChoiceList()
+        roles: this.normalizeRoleList(row.Roles), // ChoiceList()
       };
+      this.initActiveSpaceFromAuth();
       this.session.ready = true;
       this.renderHeaderUser();
       this.setupNavigation();
@@ -309,10 +310,13 @@ class ReactApp {
 
     // On ne garde que (rôle présent) ET (composant réellement disponible)
     const spaces = candidates.filter(s => hasRole(s.role) && this.components.has(s.id));
-
-    const spaceItems = spaces
-      .map(s => `<li><a class="fr-nav__link" href="#" data-nav="${s.id}">${s.label}</a></li>`)
-      .join('');
+    const activeSpace = this.getActiveSpace();
+    const spaceItems = spaces.map(s => {
+      const activeBadge = s.role === activeSpace
+        ? '<span class="fr-badge fr-badge--sm fr-ml-1w">Actif</span>'
+        : '';
+      return `<li><button class="fr-nav__link" type="button" data-space="${s.role}" data-nav="${s.id}">${s.label}${activeBadge}</button></li>`;
+    }).join('');
 
     host.innerHTML = `
       <div class="fr-nav__item">
@@ -347,6 +351,15 @@ class ReactApp {
       });
     }
 
+    host.querySelectorAll('[data-space]').forEach(el => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const role = el.getAttribute('data-space');
+        const id = el.getAttribute('data-nav');
+        this.switchSpace(role, id);
+      });
+    });
+
     // Déconnexion
     const logoutBtn = document.getElementById('btn-logout');
     if (logoutBtn) {
@@ -357,9 +370,17 @@ class ReactApp {
     }
   }
 
+  switchSpace(role, componentId) {
+    if (!role || !componentId) return;
+    this.setActiveSpace(role);
+    this.loadComponent(componentId);
+  }
+
   logout() {
     try {
       this.session.auth = null;
+      this.session.activeSpace = null;
+      try { localStorage.removeItem('activeSpace'); } catch (_) {}
       this.setupNavigation();
       this.renderHeaderUser();
 
@@ -583,7 +604,24 @@ class ReactApp {
     return false;
   }
 
+  normalizeRoleList(v) {
+    if (Array.isArray(v)) {
+      return v
+        .filter(x => x && x !== 'L')
+        .map(x => String(x).trim().toLowerCase())
+        .filter(Boolean);
+    }
+    if (typeof v === 'string') {
+      return v
+        .split(/[,\s;|]+/)
+        .map(s => s.trim().toLowerCase())
+        .filter(Boolean);
+    }
+    return [];
+  }
+
   processComponent(template) {
+    const navRoles = this.normalizeRoleList(template.nav_roles || template.allowed_roles);
     const componentData = {
       id: template.template_id,
       name: template.template_name,
@@ -591,6 +629,9 @@ class ReactApp {
       kind: (template.type || template.Type || template.component_kind || '').toString().toLowerCase() || 'page',
       code: template.component_code,
       showInNav: this.toBool(template.show_in_nav),
+      showInNavWhenAuthed: this.toBool(template.show_in_nav_when_authed),
+      hideInNavWhenAuthed: this.toBool(template.hide_in_nav_when_authed),
+      navRoles,
       navOrder: Number(template.nav_order ?? 9999),
       isDefault: this.toBool(template.default_component),
       requiresAuth: this.toBool(template.requires_auth),
@@ -693,6 +734,7 @@ class ReactApp {
         if (!comp) {
           throw new Error(`Composant d’espace manquant pour le rôle "${r}" (attendu: "${compId}")`);
         }
+        this.setActiveSpace(r, { persist: true, rerender: false });
         return comp;
       }
     }
@@ -702,6 +744,76 @@ class ReactApp {
   async redirectToLanding() {
     const comp = this.pickLandingComponent();
     await this.loadComponent(comp.id);
+  }
+
+  getAuthRoles() {
+    return Array.isArray(this.session?.auth?.roles) ? this.session.auth.roles : [];
+  }
+
+  getActiveSpace() {
+    return this.session?.activeSpace || null;
+  }
+
+  resolveActiveSpace(roles) {
+    let saved = null;
+    try { saved = localStorage.getItem('activeSpace'); } catch (_) {}
+    if (saved && roles.includes(saved)) return saved;
+    const PRIORITY = [ 'repondant', 'beneficiaire', 'acheteur' ];
+    for (const r of PRIORITY) {
+      if (roles.includes(r)) return r;
+    }
+    return roles[0] || null;
+  }
+
+  initActiveSpaceFromAuth() {
+    const roles = this.getAuthRoles();
+    const next = this.resolveActiveSpace(roles);
+    this.session.activeSpace = next;
+    if (next) {
+      try { localStorage.setItem('activeSpace', next); } catch (_) {}
+    }
+  }
+
+  setActiveSpace(role, { persist = true, rerender = true } = {}) {
+    if (!role || this.session.activeSpace === role) return;
+    this.session.activeSpace = role;
+    if (persist) {
+      try { localStorage.setItem('activeSpace', role); } catch (_) {}
+    }
+    if (rerender) {
+      this.setupNavigation();
+      this.renderHeaderUser();
+    }
+  }
+
+  updateActiveSpaceFromComponent(component) {
+    if (!component || !this.isAuthenticated()) return;
+    const ROLE_BY_SPACE = {
+      'espace-repondant': 'repondant',
+      'espace-beneficiaire': 'beneficiaire',
+      'espace-acheteur': 'acheteur'
+    };
+    let next = ROLE_BY_SPACE[component.id] || null;
+    if (!next && component.navRoles && component.navRoles.length === 1) {
+      next = component.navRoles[0];
+    }
+    if (next) this.setActiveSpace(next);
+  }
+
+  componentMatchesActiveSpace(component) {
+    const active = this.getActiveSpace();
+    if (!component?.navRoles || component.navRoles.length === 0) return true;
+    if (!this.isAuthenticated() || !active) return false;
+    return component.navRoles.includes(active);
+  }
+
+  componentVisibleInNav(component, isAuth) {
+    if (!component?.showInNav) return false;
+    if (component.showInNavWhenAuthed && !isAuth) return false;
+    if (component.hideInNavWhenAuthed && isAuth) return false;
+    if (component.requiresAuth && !isAuth) return false;
+    if (!this.componentMatchesActiveSpace(component)) return false;
+    return true;
   }
 
   // ---------- Navigation (sans hash) ----------
@@ -715,7 +827,7 @@ class ReactApp {
     const isAuth = !!this.session.auth;
 
     const comps = Array.from(this.components.values())
-      .filter(c => c.showInNav && (!c.requiresAuth || isAuth))
+      .filter(c => this.componentVisibleInNav(c, isAuth))
       .sort((a, b) => a.navOrder - b.navOrder);
 
     comps.forEach(component => {
@@ -758,26 +870,35 @@ class ReactApp {
             <li><button class="fr-btn fr-icon-lock-line" data-nav="login">Se connecter</button></li>
           </ul>`;
       } else {
-        const roles = Array.isArray(this.session.auth.roles) ? this.session.auth.roles : [];
-        const candidates = [
-          { role: 'repondant',    id: 'espace-repondant',    label: 'Espace répondant'    },
-          { role: 'beneficiaire', id: 'espace-beneficiaire', label: 'Espace bénéficiaire' },
-          { role: 'acheteur',     id: 'espace-acheteur',     label: 'Espace acheteur'     },
-        ];
-        const spaces = candidates.filter(s => roles.includes(s.role) && this.components.has(s.id));
-        const btns = spaces.map(s => `<li><button class="fr-btn" data-nav="${s.id}">${s.label}</button></li>`).join('');
-        mobileExtra.innerHTML = `
-          <ul class="fr-btns-group">${btns}</ul>
-          <ul class="fr-btns-group fr-mt-2w"><li><button class="fr-btn fr-btn--secondary" id="mobile-logout">Se déconnecter</button></li></ul>
-        `;
+      const roles = Array.isArray(this.session.auth.roles) ? this.session.auth.roles : [];
+      const candidates = [
+        { role: 'repondant',    id: 'espace-repondant',    label: 'Espace répondant'    },
+        { role: 'beneficiaire', id: 'espace-beneficiaire', label: 'Espace bénéficiaire' },
+        { role: 'acheteur',     id: 'espace-acheteur',     label: 'Espace acheteur'     },
+      ];
+      const spaces = candidates.filter(s => roles.includes(s.role) && this.components.has(s.id));
+      const active = this.getActiveSpace();
+      const btns = spaces.map(s => {
+        const cls = s.role === active ? 'fr-btn fr-btn--secondary' : 'fr-btn';
+        return `<li><button class="${cls}" data-space="${s.role}" data-nav="${s.id}">${s.label}</button></li>`;
+      }).join('');
+      mobileExtra.innerHTML = `
+        <ul class="fr-btns-group">${btns}</ul>
+        <ul class="fr-btns-group fr-mt-2w"><li><button class="fr-btn fr-btn--secondary" id="mobile-logout">Se déconnecter</button></li></ul>
+      `;
       }
       navMobile.appendChild(mobileExtra);
 
       navMobile.querySelectorAll('[data-nav]').forEach(el => {
         el.addEventListener('click', (e) => {
           e.preventDefault();
+          const role = el.getAttribute('data-space');
           const id = el.getAttribute('data-nav');
-          if (id) this.loadComponent(id);
+          if (role && id) {
+            this.switchSpace(role, id);
+          } else if (id) {
+            this.loadComponent(id);
+          }
           const modal = document.getElementById('modal-nav');
           if (modal) modal.classList.remove('fr-modal--opened');
         });
@@ -818,6 +939,20 @@ class ReactApp {
     });
   }
 
+  renderRoleGate(container, targetComp = null) {
+    const wants = targetComp ? `“${targetComp.name}”` : 'cette page';
+    container.innerHTML = `
+      <section class="fr-container fr-my-6w">
+        <div class="fr-alert fr-alert--warning fr-mb-3w">
+          <p><strong>Accès restreint.</strong> Votre rôle ne permet pas d'accéder à ${wants}.</p>
+        </div>
+        <div class="fr-btns-group fr-btns-group--inline">
+          <button class="fr-btn fr-btn--secondary" data-nav="home">Retour à l'accueil</button>
+        </div>
+      </section>
+    `;
+  }
+
   async loadComponent(componentId) {
     if (!this.isReady) return;
     const component = this.components.get(componentId);
@@ -832,6 +967,11 @@ class ReactApp {
       this.currentComponent = null;
       return;
     }
+    if (!this.componentMatchesRoles(component)) {
+      this.renderRoleGate(document.getElementById('main-content'), component);
+      this.currentComponent = null;
+      return;
+    }
 
     // Nettoyer l’ancienne root si présente
     if (this._currentRoot && this._currentRoot.unmount) {
@@ -841,6 +981,8 @@ class ReactApp {
 
     const main = document.getElementById('main-content');
     await component.render(main);
+
+    this.updateActiveSpaceFromComponent(component);
 
     // Etat actif dans le menu
     document.querySelectorAll('#navigation .fr-nav__link').forEach(link => {
@@ -865,8 +1007,14 @@ class ReactApp {
       return;
     }
 
-    // Si connecté → redirection immédiate vers l’espace en fonction du rôle
+    // Si connecté → priorité au composant par défaut accessible
     if (this.isAuthenticated()) {
+      const authedDefault = Array.from(this.components.values())
+        .find(c => c.isDefault && (!c.requiresAuth || this.isAuthenticated()) && this.componentMatchesActiveSpace(c));
+      if (authedDefault) {
+        await this.loadComponent(authedDefault.id);
+        return;
+      }
       await this.redirectToLanding();
       return;
     }

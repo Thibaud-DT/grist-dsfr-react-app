@@ -4,7 +4,8 @@ const { useEffect, useRef, useState, useMemo } = React;
 const TABLE = 'Application_Composants';
 const FIELDS = [
   'template_id','template_name','component_code','component_type',
-  'show_in_nav','nav_order','default_component','requires_auth'
+  'show_in_nav','show_in_nav_when_authed','hide_in_nav_when_authed','nav_roles',
+  'nav_order','default_component','requires_auth'
 ];
 
 /** ------------------ Helpers Grist “compat” ------------------ */
@@ -163,6 +164,22 @@ function SettingsPanel({ draft, bind, dirty, setDraft, setDirty }){
         'Afficher dans la nav'
       ]),
       React.createElement('label', { className:'switch' }, [
+        React.createElement('input', { type:'checkbox', checked: !!draft.show_in_nav_when_authed,
+          onChange: e=>{ setDraft(d=>({...d, show_in_nav_when_authed: !!e.target.checked })); setDirty(true);} }),
+        'Nav si connecte'
+      ]),
+      React.createElement('label', { className:'switch' }, [
+        React.createElement('input', { type:'checkbox', checked: !!draft.hide_in_nav_when_authed,
+          onChange: e=>{ setDraft(d=>({...d, hide_in_nav_when_authed: !!e.target.checked })); setDirty(true);} }),
+        'Masquer si connecte'
+      ])
+    ]),
+    React.createElement('div', { className:'row' }, [
+      React.createElement('div', { className:'field grow' }, [
+        React.createElement('label', null, 'Roles nav (csv)'),
+        React.createElement('input', { type:'text', placeholder:'beneficiaire, acheteur, repondant', ...bind('nav_roles') })
+      ]),
+      React.createElement('label', { className:'switch' }, [
         React.createElement('input', { type:'checkbox', checked: !!draft.default_component,
           onChange: e=>{ setDraft(d=>({...d, default_component: !!e.target.checked })); setDirty(true);} }),
         'Par défaut'
@@ -319,6 +336,9 @@ function App(){
 };`,
       component_type: 'react',
       show_in_nav: true,
+      show_in_nav_when_authed: false,
+      hide_in_nav_when_authed: false,
+      nav_roles: '',
       nav_order: (items[items.length-1]?.nav_order || 0) + 10,
       default_component: false,
       requires_auth: false,
